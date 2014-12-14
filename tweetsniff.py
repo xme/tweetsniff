@@ -1,4 +1,9 @@
 #!/usr/bin/env python
+#
+# Author: Xavier Mertens <xavier@rootshell.be>
+# Copyright: GPLv3 (http://gplv3.fsf.org/)
+# Feel free to use the code, but please share the changes you've made
+# 
 import argparse
 import errno
 import ConfigParser
@@ -46,8 +51,12 @@ def indexEs(tweet):
 		del doc['urls']
 
 	# To fix: support different timezones? (+00:00
-	doc['@timestamp'] = parser.parse(doc['created_at']).strftime("%Y-%m-%dT%H:%M:%S+00:00")
-	res = es.index(index=esIndex, doc_type='tweet', body=doc)
+	try:
+		doc['@timestamp'] = parser.parse(doc['created_at']).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+		res = es.index(index=esIndex, doc_type='tweet', body=doc)
+        except:
+                print "[Warning] Can't connect to %s" % esServer
+
 	return
 
 def updateTimeline(first_id):
