@@ -17,6 +17,7 @@ import time
 import twitter
 from datetime import datetime
 from dateutil import parser
+from dateutil import tz
 from elasticsearch import Elasticsearch
 from termcolor import colored
 
@@ -37,6 +38,20 @@ def writeLog(msg):
         syslog.openlog(logoption=syslog.LOG_PID,facility=syslog.LOG_MAIL)
         syslog.syslog(msg)
         return
+
+def time2Local(s):
+
+	"""Convert a 'created_at' date (UTC) to local time"""
+
+	if not s:
+		utc = datetime.utcnow()
+	else:
+		utc = datetime.strptime(parser.parse(s).strftime('%Y-%m-%d %H:%M:%S'), '%Y-%m-%d %H:%M:%S')
+
+	from_zone = tz.tzutc()
+	to_zone = tz.tzlocal()
+	utc = utc.replace(tzinfo=from_zone)
+	return(utc.astimezone(to_zone))
 
 def indexEs(tweet):
 
@@ -80,7 +95,7 @@ def updateTimeline(first_id):
 				if re.search('('+r+')', text, re.I):
 					text = text.replace(r, colored(r, highlightColor))
 
-		print "%s | %15s | %s" % (parser.parse(t.created_at).strftime("%H:%M:%S"),
+		print "%s | %15s | %s" % (time2Local(t.created_at).strftime("%H:%M:%S"),
 					t.user.screen_name,
 					text)
 		if es:
