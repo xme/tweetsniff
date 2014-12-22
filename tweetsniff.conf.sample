@@ -7,9 +7,14 @@ status_file: /var/run/tweetsniff.status
 
 [highlight]
 color: red
-regex: 
-	foo
+regex: foo
 	security
+
+[search]
+color: blue
+keywords: drone
+	brucon
+	malware
 
 [elasticsearch]
 server: http://127.0.0.1:9200
