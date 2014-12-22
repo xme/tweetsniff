@@ -113,6 +113,7 @@ def updateSearch(search_id):
 
 	"""Get new Tweets containing specific keywords"""
 
+	last_id = 0
 	for keyword in config['keywords']:
 		if not keyword:
 			continue
@@ -124,9 +125,8 @@ def updateSearch(search_id):
 			return(search_id)
 
 		if not tweets:
-			return(search_id) 
+			continue
 
-		last_id = 0
 		for t in reversed(tweets):
 			text = t.text
 
@@ -146,7 +146,7 @@ def updateSearch(search_id):
 				indexEs(t)
 			if (t.id > last_id):
 				last_id = t.id
-		return(last_id)
+	return(last_id)
 	
 def main():
 	global api
