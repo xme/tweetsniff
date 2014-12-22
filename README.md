@@ -16,6 +16,7 @@ Valid Twitter API key & token are required, see https://apps.twitter.com/
 
 Usage
 -----
+<pre>
 usage: tweetsniff.py [-h] [-c CONFIG]
 
 Display a Tweet feed
@@ -24,6 +25,7 @@ optional arguments:
   -h, --help            show this help message and exit
   -c CONFIG, --config CONFIG
                         configuration file (default: /etc/tweetsniff.conf)
+</pre>
 
 Todo
 ----
