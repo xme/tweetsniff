@@ -22,10 +22,15 @@ from elasticsearch import Elasticsearch
 from termcolor import colored
 
 api = None
-regex = None
 
 # Default configuration 
-config = { 'statusFile': '/var/run/tweetsniff.status' }
+config = {
+	'statusFile': '/var/run/tweetsniff.status',
+	'keywords': '',
+	'regex': '',
+	'highlightColor': 'red',
+	'keywordColor': 'blue'
+}
 
 def sigHandler(s, f):
 
@@ -74,26 +79,26 @@ def indexEs(tweet):
 
 	return
 
-def updateTimeline(first_id):
+def updateTimeline(timeline_id):
 
 	"""Get new Tweets from twitter.com"""
 
 	try:
-		timeline = api.GetHomeTimeline(since_id=first_id)
+		timeline = api.GetHomeTimeline(since_id=timeline_id)
 	except twitter.error.TwitterError as e:
 		print "[Error] Twitter returned: %s (%d)" % (e[0][0]['message'], e[0][0]['code'])
-		return first_id
+		return timeline_id
 
 	if not timeline:
-		return first_id
+		return timeline_id
 
 	last_id = 0
 	for t in reversed(timeline):
 		text = t.text
-		for r in regex:
+		for r in config['regex']:
 			if r:
 				if re.search('('+r+')', text, re.I):
-					text = text.replace(r, colored(r, highlightColor))
+					text = text.replace(r, colored(r, config['highlightColor']))
 
 		print "%s | %15s | %s" % (time2Local(t.created_at).strftime("%H:%M:%S"),
 					t.user.screen_name,
@@ -103,13 +108,50 @@ def updateTimeline(first_id):
 		if (t.id > last_id):
 			last_id = t.id
 	return(last_id)
+
+def updateSearch(search_id):
+
+	"""Get new Tweets containing specific keywords"""
+
+	for keyword in config['keywords']:
+		if not keyword:
+			continue
+		print "DEBUG:  Keyword = %s" % keyword
+		try:
+			tweets = api.GetSearch(term=keyword, since_id=search_id)
+		except twitter.error.TwitterError as e:
+			print "[Error] Twitter returned: %s (%d)" % (e[0][0]['message'], e[0][0]['code'])
+			return(search_id)
+
+		if not tweets:
+			return(search_id) 
+
+		last_id = 0
+		for t in reversed(tweets):
+			text = t.text
+
+			# Highlight keyword
+			if re.search('('+keyword+')', text, re.I):
+				text = text.replace(keyword, colored(keyword, config['keywordColor']))
+
+			for r in config['regex']:
+				if r:
+					if re.search('('+r+')', text, re.I):
+						text = text.replace(r, colored(r, config['highlightColor']))
+
+			print "%s | %15s | %s" % (time2Local(t.created_at).strftime("%H:%M:%S"),
+						t.user.screen_name,
+						text)
+			if es: 
+				indexEs(t)
+			if (t.id > last_id):
+				last_id = t.id
+		return(last_id)
 	
 def main():
 	global api
 	global config
 	global es
-	global regex
-	global highlightColor
 	global esIndex
 
 	signal.signal(signal.SIGINT, sigHandler)
@@ -135,8 +177,11 @@ def main():
 		accessTokenSecret = c.get('twitterapi', 'access_token_secret')
 		config['statusFile'] = c.get('twitterapi', 'status_file')
 		#Highligts
-		highlightColor = c.get('highlight', 'color')
+		config['highlightColor'] = c.get('highlight', 'color')
 		highlightRegex = c.get('highlight', 'regex')
+		# Search
+		searchKeywords = c.get('search', 'keywords')
+		config['keywordColor'] = c.get('search', 'color')
 		# Elasticsearch config (optional)
 		esServer = c.get('elasticsearch', 'server')
 		esIndex = c.get('elasticsearch', 'index')
@@ -147,8 +192,12 @@ def main():
 	print "DEBUG: %s, %s, %s, %s" % (consumerKey,consumerSecret,accessTokenKey,accessTokenSecret)
 	print "DEBUG: Regex: %s" % highlightRegex
 
+	if searchKeywords:
+		config['keywords'] = searchKeywords.split('\n')
+		print "DEBUG: keywords = %s" % config['keywords']
+
 	if highlightRegex:
-		regex = highlightRegex.split('\n')
+		config['regex'] = highlightRegex.split('\n')
 
 	try:
 		api = twitter.Api(consumer_key = consumerKey,
@@ -170,19 +219,30 @@ def main():
 
 	if not os.path.isfile(config['statusFile']):
 		print "DEBUG: Status file not found, starting new feed"
-		first_id = 0
+		timeline_id = 0
+		search_id = 0
+		
 	else:
 		fd = open(config['statusFile'], 'r')
-                first_id = fd.read()
+                data = fd.read().split(',')
+		timeline_id = data[0]
+		search_id = data[1]
                 fd.close()
-		print "DEBUG: Restarting feed from ID %s" % first_id
+		print "DEBUG: Restarting feed from ID %s/%s" % (timeline_id, search_id)
 
 	while 1:
-		first_id = updateTimeline(first_id)
+		timeline_id = updateTimeline(timeline_id)
+		search_id = updateSearch(search_id)
 		fd = open(config['statusFile'], 'w')
-		fd.write(str(first_id))
+		fd.write("%s,%s" % (str(timeline_id), str(search_id)))
 		fd.close()
-		time.sleep(65)
+		sleep_home = api.GetAverageSleepTime('statuses/home_timeline')
+		sleep_search = api.GetAverageSleepTime('search/tweets')
+		print "DEBUG: Sleep = %s / %s" % (sleep_home, sleep_search)
+		if sleep_search > sleep_home:
+			time.sleep(sleep_search)
+		else:
+			time.sleep(sleep_home)
 
 if __name__ == '__main__':
 	main()
