@@ -1,6 +1,6 @@
 tweetsniff.py
 =============
-Grabs a user's Twitter feed via the Twitter API for local processing
+Grabs a user's Twitter feed and tweets with specific keywords via the Twitter API for local processing
 (storing to ElasticSearch, regex highlighting, etc)
 
 Installation
@@ -29,3 +29,4 @@ optional arguments:
 
 Todo
 ----
+- Add more statistics
