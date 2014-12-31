@@ -12,9 +12,17 @@ import os
 import re
 import signal
 import sys
-import syslog
 import time
-import twitter
+
+try:
+	import twitter
+except:
+	print "[ERROR]: python-twitter is required. See https://github.com/bear/python-twitter"
+
+try:
+	import syslog
+except:
+	print "[INFO]: No Syslog support, logging to console"
 from datetime import datetime
 from dateutil import parser
 from dateutil import tz
@@ -26,6 +34,7 @@ api = None
 # Default configuration 
 config = {
 	'statusFile': '/var/run/tweetsniff.status',
+	'esServer': '',
 	'keywords': '',
 	'regex': '',
 	'highlightColor': 'red',
@@ -40,8 +49,14 @@ def sigHandler(s, f):
 	sys.exit(0)
 
 def writeLog(msg):
-        syslog.openlog(logoption=syslog.LOG_PID,facility=syslog.LOG_MAIL)
-        syslog.syslog(msg)
+
+	"""Output a message to the console/Syslog depending on the host"""
+
+	if os.name == "posix":
+        	syslog.openlog(logoption=syslog.LOG_PID,facility=syslog.LOG_MAIL)
+        	syslog.syslog(msg)
+	else:
+		print msg
         return
 
 def time2Local(s):
@@ -75,7 +90,7 @@ def indexEs(tweet):
 		doc['@timestamp'] = parser.parse(doc['created_at']).strftime("%Y-%m-%dT%H:%M:%S+00:00")
 		res = es.index(index=esIndex, doc_type='tweet', body=doc)
         except:
-                print "[Warning] Can't connect to %s" % esServer
+                print "[Warning] Can't connect to %s" % config['esServer']
 
 	return
 
@@ -117,7 +132,6 @@ def updateSearch(search_id):
 	for keyword in config['keywords']:
 		if not keyword:
 			continue
-		print "DEBUG:  Keyword = %s" % keyword
 		try:
 			tweets = api.GetSearch(term=keyword, since_id=search_id)
 		except twitter.error.TwitterError as e:
@@ -183,7 +197,7 @@ def main():
 		searchKeywords = c.get('search', 'keywords')
 		config['keywordColor'] = c.get('search', 'color')
 		# Elasticsearch config (optional)
-		esServer = c.get('elasticsearch', 'server')
+		config['esServer'] = c.get('elasticsearch', 'server')
 		esIndex = c.get('elasticsearch', 'index')
 	except OSError as e:
 		writeLog('Cannot read config file %s: %s' % (args.configFile, e.errno()))
@@ -208,13 +222,13 @@ def main():
 		print "[Error] Can't connect to twitter.com" 
 		sys.exit(1)
 
-	if esServer:
+	if config['esServer']:
 		try:
 			es = Elasticsearch(
-				[esServer]
+				[config['esServer']]
 				)
 		except:
-			print "[Warning] Can't connect to %s" % esServer
+			print "[Warning] Can't connect to %s" % config['esServer']
 
 
 	if not os.path.isfile(config['statusFile']):
