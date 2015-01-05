@@ -107,7 +107,7 @@ def updateTimeline(timeline_id):
 	if not timeline:
 		return timeline_id
 
-	last_id = 0
+	last_id = timeline_id
 	for t in reversed(timeline):
 		text = t.text
 		for r in config['regex']:
@@ -120,7 +120,7 @@ def updateTimeline(timeline_id):
 					text)
 		if es:
 			indexEs(t)
-		if (t.id > last_id):
+		if (long(t.id) > long(last_id)):
 			last_id = t.id
 	return(last_id)
 
@@ -128,7 +128,7 @@ def updateSearch(search_id):
 
 	"""Get new Tweets containing specific keywords"""
 
-	last_id = 0
+	last_id = search_id
 	for keyword in config['keywords']:
 		if not keyword:
 			continue
@@ -158,8 +158,9 @@ def updateSearch(search_id):
 						text)
 			if es: 
 				indexEs(t)
-			if (t.id > last_id):
+			if long(t.id) > long(last_id):
 				last_id = t.id
+	print "[DEBUG] last_id = %s" % last_id
 	return(last_id)
 	
 def main():
