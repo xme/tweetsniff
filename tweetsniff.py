@@ -251,8 +251,12 @@ def main():
 		fd = open(config['statusFile'], 'w')
 		fd.write("%s,%s" % (str(timeline_id), str(search_id)))
 		fd.close()
-		sleep_home = api.GetAverageSleepTime('statuses/home_timeline')
-		sleep_search = api.GetAverageSleepTime('search/tweets')
+		try:
+			sleep_home = api.GetAverageSleepTime('statuses/home_timeline')
+			sleep_search = api.GetAverageSleepTime('search/tweets')
+		except twitter.error.TwitterError as e:
+			print "[Error] Twitter returned: %s (%d)" % (e[0][0]['message'], e[0][0]['code'])
+
 		print "DEBUG: Sleep = %s / %s" % (sleep_home, sleep_search)
 		if sleep_search > sleep_home:
 			time.sleep(sleep_search)
