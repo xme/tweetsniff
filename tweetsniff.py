@@ -8,6 +8,8 @@ import argparse
 import errno
 import ConfigParser
 import json
+import logging
+import logging.handlers
 import os
 import re
 import signal
@@ -30,6 +32,7 @@ from elasticsearch import Elasticsearch
 from termcolor import colored
 
 api = None
+logger = None
 
 # Default configuration 
 config = {
@@ -38,7 +41,9 @@ config = {
 	'keywords': '',
 	'regex': '',
 	'highlightColor': 'red',
-	'keywordColor': 'blue'
+	'keywordColor': 'blue',
+	'cefServer': '',
+	'cefPort': ''
 }
 
 def sigHandler(s, f):
@@ -58,6 +63,15 @@ def writeLog(msg):
 	else:
 		print msg
         return
+
+def writeCEFEvent(tweet):
+
+	"""Send a CEF event to a Syslog destination"""
+
+	# print "[Debug]: Writing CEF: %s" % tweet
+	cefmsg = ' CEF:0|blog.rootshell.be|tweetsniff|1.0|TwitterMsg|Received Twitter Message|0|cs1Label=TweetHandle cs1=%s cs2Label=TweetTime cs2=%s msg=%s' % (tweet.user.screen_name, tweet.created_at, tweet.text)
+	logger.info(cefmsg)
+	return
 
 def time2Local(s):
 
@@ -120,6 +134,10 @@ def updateTimeline(timeline_id):
 					text)
 		if es:
 			indexEs(t)
+
+		if logger:
+			writeCEFEvent(t)
+
 		if (long(t.id) > long(last_id)):
 			last_id = t.id
 	return(last_id)
@@ -135,7 +153,7 @@ def updateSearch(search_id):
 		try:
 			tweets = api.GetSearch(term=keyword, since_id=search_id)
 		except twitter.error.TwitterError as e:
-			print "[Error] Twitter returned: %s (%d)" % (e[0][0]['message'], e[0][0]['code'])
+			print "[Error] Twitter returned: %s (%s)" % (e[0][0]['message'], str(e[0][0]['code']))
 			return(search_id)
 
 		if not tweets:
@@ -158,6 +176,10 @@ def updateSearch(search_id):
 						text)
 			if es: 
 				indexEs(t)
+
+			if logger:
+				writeCEFEvent(t)
+
 			if long(t.id) > long(last_id):
 				last_id = t.id
 	print "[DEBUG] last_id = %s" % last_id
@@ -168,6 +190,7 @@ def main():
 	global config
 	global es
 	global esIndex
+	global logger
 
 	signal.signal(signal.SIGINT, sigHandler)
 
@@ -200,6 +223,9 @@ def main():
 		# Elasticsearch config (optional)
 		config['esServer'] = c.get('elasticsearch', 'server')
 		esIndex = c.get('elasticsearch', 'index')
+		# CEF confit
+		config['cefServer'] = c.get('cef', 'server')
+		config['cefPort'] = c.get('cef', 'port')
 	except OSError as e:
 		writeLog('Cannot read config file %s: %s' % (args.configFile, e.errno()))
 		exit
@@ -231,6 +257,17 @@ def main():
 		except:
 			print "[Warning] Can't connect to %s" % config['esServer']
 
+	if config['cefServer']:
+		try:
+			logger = logging.getLogger('tweetsniff')
+			logger.setLevel(logging.INFO)
+			if config['cefPort']:
+				handler = logging.handlers.SysLogHandler(address=(config['cefServer'], int(config['cefPort'])))
+			else:
+				handler = logging.handlers.SysLogHandler(address=(config['cefServer'], 514))
+			logger.addHandler(handler)
+		except:
+			print "[Warning] Can't configure CEF destination: %s:%s", (config['cefServer'],config['cefPort'])
 
 	if not os.path.isfile(config['statusFile']):
 		print "DEBUG: Status file not found, starting new feed"
@@ -255,7 +292,7 @@ def main():
 			sleep_home = api.GetAverageSleepTime('statuses/home_timeline')
 			sleep_search = api.GetAverageSleepTime('search/tweets')
 		except twitter.error.TwitterError as e:
-			print "[Error] Twitter returned: %s (%d)" % (e[0][0]['message'], e[0][0]['code'])
+			print "[Error] Twitter returned: %s (%s)" % (e[0][0]['message'], str(e[0][0]['code']))
 
 		print "DEBUG: Sleep = %s / %s" % (sleep_home, sleep_search)
 		if sleep_search > sleep_home:
