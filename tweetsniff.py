@@ -224,8 +224,11 @@ def main():
 		config['esServer'] = c.get('elasticsearch', 'server')
 		esIndex = c.get('elasticsearch', 'index')
 		# CEF confit
-		config['cefServer'] = c.get('cef', 'server')
-		config['cefPort'] = c.get('cef', 'port')
+		try:
+			config['cefServer'] = c.get('cef', 'server')
+			config['cefPort'] = c.get('cef', 'port')
+		except:
+			pass
 	except OSError as e:
 		writeLog('Cannot read config file %s: %s' % (args.configFile, e.errno()))
 		exit
