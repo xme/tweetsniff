@@ -130,8 +130,8 @@ def updateTimeline(timeline_id):
 					text = text.replace(r, colored(r, config['highlightColor']))
 
 		print "%s | %15s | %s" % (time2Local(t.created_at).strftime("%H:%M:%S"),
-					t.user.screen_name,
-					text)
+					t.user.screen_name.encode("utf-8"),
+					text.encode("utf-8"))
 		if es:
 			indexEs(t)
 
@@ -172,8 +172,8 @@ def updateSearch(search_id):
 						text = text.replace(r, colored(r, config['highlightColor']))
 
 			print "%s | %15s | %s" % (time2Local(t.created_at).strftime("%H:%M:%S"),
-						t.user.screen_name,
-						text)
+						t.user.screen_name.encode("utf-8"),
+						text.encode("utf-8"))
 			if es: 
 				indexEs(t)
 
