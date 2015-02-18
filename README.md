@@ -9,6 +9,7 @@ The following Python modules are required:
 - twitter
 - elasticsearch
 - termcolor
+- dateutil
 
 Install them with: pip install <module>
 

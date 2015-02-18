@@ -130,8 +130,8 @@ def updateTimeline(timeline_id):
 					text = text.replace(r, colored(r, config['highlightColor']))
 
 		print "%s | %15s | %s" % (time2Local(t.created_at).strftime("%H:%M:%S"),
-					t.user.screen_name,
-					text)
+					t.user.screen_name.encode("utf-8"),
+					text.encode("utf-8"))
 		if es:
 			indexEs(t)
 
@@ -172,8 +172,8 @@ def updateSearch(search_id):
 						text = text.replace(r, colored(r, config['highlightColor']))
 
 			print "%s | %15s | %s" % (time2Local(t.created_at).strftime("%H:%M:%S"),
-						t.user.screen_name,
-						text)
+						t.user.screen_name.encode("utf-8"),
+						text.encode("utf-8"))
 			if es: 
 				indexEs(t)
 
@@ -286,8 +286,13 @@ def main():
 		print "DEBUG: Restarting feed from ID %s/%s" % (timeline_id, search_id)
 
 	while 1:
-		timeline_id = updateTimeline(timeline_id)
-		search_id = updateSearch(search_id)
+		try:
+			timeline_id = updateTimeline(timeline_id)
+			search_id = updateSearch(search_id)
+		except AttributeError:
+			print "[Error] Can't connect to twitter.com" 
+			sys.exit(1)		
+
 		fd = open(config['statusFile'], 'w')
 		fd.write("%s,%s" % (str(timeline_id), str(search_id)))
 		fd.close()
