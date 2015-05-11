@@ -31,6 +31,9 @@ from dateutil import tz
 from elasticsearch import Elasticsearch
 from termcolor import colored
 
+import hashlib
+import urllib, httplib
+
 api = None
 logger = None
 
@@ -87,26 +90,92 @@ def time2Local(s):
 	utc = utc.replace(tzinfo=from_zone)
 	return(utc.astimezone(to_zone))
 
-def indexEs(tweet):
+def indexEs(tweet, urls, tweet_message):
 
 	"""Index a new Tweet in Elasticsearch"""
 
 	doc = tweet.AsDict()
 	# Delete 'retweeted_status' - to be fixed later
 	if 'retweeted_status' in doc:
-		del doc['retweeted_status']
-	# Delete 'urls' - to be fixed later?
+		del doc['retweeted_status']	
+	# Delete old urls'
 	if 'urls' in doc:
 		del doc['urls']
 
 	# To fix: support different timezones? (+00:00
 	try:
 		doc['@timestamp'] = parser.parse(doc['created_at']).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+		doc['text'] = tweet_message
+
+		if config['urls_process_urls'] == True:
+			if urls:
+				x = 1
+				for url in urls:
+					doc['urls.' + str(x) + '.url'] = url['url']
+					doc['urls.' + str(x) + '.url_unshortened'] = url['url_unshortened']
+					doc['urls.' + str(x) + '.url_md5'] = url['url_md5']
+					doc['urls.' + str(x) + '.url_sha1'] = url['url_sha1']
+					x = x + 1
 		res = es.index(index=esIndex, doc_type='tweet', body=doc)
-        except:
-                print "[Warning] Can't connect to %s" % config['esServer']
+	except:
+	    print "[Warning] Can't connect to %s" % config['esServer']
 
 	return
+
+def processURL(urls):
+
+	""" Process the short URLs to get expanded and get their hashes """
+
+	processed_urls = []
+	if urls:
+		for url in urls:
+			url_unshortened = unshortenURL(url.expanded_url.encode("utf-8"))			
+			url_md5 = hashlib.md5(url_unshortened.encode('utf-8')).hexdigest()
+			url_sha1 = hashlib.sha1(url_unshortened.encode('utf-8')).hexdigest()
+			processed_urls.append( { 	'url': url.url.encode('utf-8'), 
+							'url_unshortened': url_unshortened, 
+							'url_md5': url_md5, 
+							'url_sha1': url_sha1 })
+	return processed_urls
+
+def unshortenURL(url):
+
+	""" unshortenURL  https://github.com/cudeso/expandurl"""
+
+	url_ua = config['urls_ua']
+	urls_timeout = 	config['urls_timeout']
+	currenturl = url.strip()
+	previousurl = None
+	while currenturl != previousurl:
+
+	    try:
+	        httprequest = httplib.urlsplit(currenturl)
+	        scheme = httprequest.scheme.lower()
+	        netloc = httprequest.netloc.lower()
+	        previousurl = currenturl
+	        if scheme == 'http':
+	            conn = httplib.HTTPConnection(netloc, timeout=5)
+	            req = currenturl[7+len(netloc):]
+	            location = "%s://%s" % (scheme, netloc)
+	        elif scheme=='https':
+	            conn = httplib.HTTPSConnection(netloc, timeout=5)
+	            req = currenturl[8+len(netloc):]
+	            location = "%s://%s" % (scheme, netloc)           
+
+	        conn.request("HEAD", req, None, {'User-Agent': url_ua,'Accept': '*/*',})
+	        res = conn.getresponse()
+
+	        if res.status in [301, 304]:
+	            currenturl = res.getheader('Location')
+	            httprequest_redirect = httplib.urlsplit(currenturl)
+
+	            if httprequest_redirect.scheme.lower() != 'http' and httprequest_redirect.scheme.lower() != 'https':
+	                # currenturl does not contain http(s) 
+	                currenturl = "%s://%s%s" % (scheme, netloc,currenturl)
+	    except:
+	        currenturl = url
+
+	return currenturl
 
 def updateTimeline(timeline_id):
 
@@ -129,11 +198,20 @@ def updateTimeline(timeline_id):
 				if re.search('('+r+')', text, re.I):
 					text = text.replace(r, colored(r, config['highlightColor']))
 
+		tweet_message = text.encode("utf-8")
+		if config['urls_process_urls'] == True:
+			urls = processURL(t.urls)
+			for url in urls:
+				tweet_message = tweet_message.replace( url['url'] , url['url_unshortened'])
+		else:
+			urls = []
+
 		print "%s | %15s | %s" % (time2Local(t.created_at).strftime("%H:%M:%S"),
 					t.user.screen_name.encode("utf-8"),
-					text.encode("utf-8"))
+					tweet_message)
+
 		if es:
-			indexEs(t)
+			indexEs(t, urls, tweet_message)
 
 		if logger:
 			writeCEFEvent(t)
@@ -171,11 +249,20 @@ def updateSearch(search_id):
 					if re.search('('+r+')', text, re.I):
 						text = text.replace(r, colored(r, config['highlightColor']))
 
+			tweet_message = text.encode("utf-8")
+			if config['urls_process_urls'] == True:
+				urls = processURL(t.urls)
+				for url in urls:
+					tweet_message = tweet_message.replace( url['url'] , url['url_unshortened'])
+			else:
+				urls = []
+
 			print "%s | %15s | %s" % (time2Local(t.created_at).strftime("%H:%M:%S"),
 						t.user.screen_name.encode("utf-8"),
-						text.encode("utf-8"))
+						tweet_message)
+
 			if es: 
-				indexEs(t)
+				indexEs(t, urls, tweet_message)
 
 			if logger:
 				writeCEFEvent(t)
@@ -220,6 +307,12 @@ def main():
 		# Search
 		searchKeywords = c.get('search', 'keywords')
 		config['keywordColor'] = c.get('search', 'color')
+		# URLs
+		config['urls_ua'] = c.get('urls', 'ua')
+		config['urls_timeout'] = c.get('urls', 'timeout')
+		config['urls_process_urls'] = c.get('urls', 'process_urls')
+		if config['urls_process_urls'].lower() == 'true':
+			config['urls_process_urls'] = True
 		# Elasticsearch config (optional)
 		config['esServer'] = c.get('elasticsearch', 'server')
 		esIndex = time.strftime(c.get('elasticsearch', 'index'), time.localtime())
