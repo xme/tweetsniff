@@ -18,7 +18,7 @@ keywords: drone
 
 [elasticsearch]
 server: http://127.0.0.1:9200
-index: twitter
+index: twitter-%Y.%m.%d
 
 [cef]
 server: 192.168.0.1

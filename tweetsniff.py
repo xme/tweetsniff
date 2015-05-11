@@ -222,7 +222,7 @@ def main():
 		config['keywordColor'] = c.get('search', 'color')
 		# Elasticsearch config (optional)
 		config['esServer'] = c.get('elasticsearch', 'server')
-		esIndex = c.get('elasticsearch', 'index')
+		esIndex = time.strftime(c.get('elasticsearch', 'index'), time.localtime())
 		# CEF confit
 		try:
 			config['cefServer'] = c.get('cef', 'server')
