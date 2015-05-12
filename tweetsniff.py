@@ -116,7 +116,9 @@ def indexEs(tweet, urls, tweet_message):
 					doc['urls.' + str(x) + '.url_md5'] = url['url_md5']
 					doc['urls.' + str(x) + '.url_sha1'] = url['url_sha1']
 					x = x + 1
-		res = es.index(index=esIndex, doc_type='tweet', body=doc)
+		res = es.index(index=time.strftime(esIndex, time.localtime()),
+				doc_type='tweet',
+				body=doc)
 	except:
 	    print "[Warning] Can't connect to %s" % config['esServer']
 
@@ -315,7 +317,7 @@ def main():
 			config['urls_process_urls'] = True
 		# Elasticsearch config (optional)
 		config['esServer'] = c.get('elasticsearch', 'server')
-		esIndex = time.strftime(c.get('elasticsearch', 'index'), time.localtime())
+		esIndex = c.get('elasticsearch', 'index')
 		# CEF confit
 		try:
 			config['cefServer'] = c.get('cef', 'server')
