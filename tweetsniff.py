@@ -131,13 +131,16 @@ def processURL(urls):
 	processed_urls = []
 	if urls:
 		for url in urls:
-			url_unshortened = unshortenURL(url.expanded_url.encode("utf-8"))			
-			url_md5 = hashlib.md5(url_unshortened.encode('utf-8')).hexdigest()
-			url_sha1 = hashlib.sha1(url_unshortened.encode('utf-8')).hexdigest()
-			processed_urls.append( { 	'url': url.url.encode('utf-8'), 
-							'url_unshortened': url_unshortened, 
-							'url_md5': url_md5, 
-							'url_sha1': url_sha1 })
+			try:
+				url_unshortened = unshortenURL(url.expanded_url.encode("utf-8"))			
+				url_md5 = hashlib.md5(url_unshortened.encode('utf-8')).hexdigest()
+				url_sha1 = hashlib.sha1(url_unshortened.encode('utf-8')).hexdigest()
+				processed_urls.append( { 	'url': url.url.encode('utf-8'), 
+								'url_unshortened': url_unshortened, 
+								'url_md5': url_md5, 
+								'url_sha1': url_sha1 })
+			except:
+				continue
 	return processed_urls
 
 def unshortenURL(url):
